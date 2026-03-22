@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scribble">
+<meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Scribble Pad</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--sur:#111118;--sur2:#1a1a26;--brd:#2a2a3a;
+  --acc:#7c6fff;--acc2:#ff6f91;--acc3:#6fffd4;
+  --txt:#e8e8f0;--dim:#6b6b85;--glow:rgba(124,111,255,0.3);
+  --st: env(safe-area-inset-top,0px);
+  --sb: env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:'Syne',sans-serif;}
+body{
+  display:flex;flex-direction:column;
+  padding-top:var(--st);padding-bottom:var(--sb);
+  position:fixed;inset:0;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(124,111,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,111,255,.04) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;z-index:0;
+}
+
+/* HEADER */
+.hdr{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;flex-shrink:0;}
+.logo{font-weight:800;font-size:21px;letter-spacing:-.5px;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.logo-sub{font-family:'Space Mono',monospace;font-size:8px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;display:block;margin-top:-1px;}
+.hdr-btns{display:flex;gap:7px;}
+.ibtn{
+  width:36px;height:36px;border-radius:10px;
+  background:var(--sur2);border:1px solid var(--brd);
+  color:var(--dim);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:16px;transition:all .12s;
+}
+.ibtn:active{transform:scale(.88);background:var(--brd);}
+.ibtn svg{pointer-events:none;}
+
+/* CANVAS */
+.cwrap{
+  flex:1;position:relative;z-index:1;
+  margin:0 10px;border-radius:18px;overflow:hidden;
+  border:1px solid var(--brd);background:var(--sur);
+  box-shadow:0 0 50px rgba(124,111,255,.07),inset 0 0 80px rgba(0,0,0,.25);
+  min-height:0;
+}
+canvas{display:block;width:100%;height:100%;touch-action:none;}
+.hint{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  pointer-events:none;gap:10px;transition:opacity .5s;
+}
+.hint.gone{opacity:0;}
+.hint-icon{font-size:46px;opacity:.13;animation:fl 3s ease-in-out infinite;}
+.hint-txt{font-family:'Space Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;opacity:.4;}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+.size-tag{
+  position:absolute;top:12px;right:12px;
+  background:rgba(10,10,15,.75);backdrop-filter:blur(10px);
+  border:1px solid var(--brd);border-radius:20px;
+  padding:5px 12px;display:flex;align-items:center;gap:8px;
+  pointer-events:none;opacity:0;transition:opacity .3s;
+}
+.size-tag.show{opacity:1;}
+.sdot{background:var(--acc);border-radius:50%;transition:all .2s;}
+.stxt{font-family:'Space Mono',monospace;font-size:10px;color:var(--dim);}
+
+/* TOOLBAR */
+.toolbar{position:relative;z-index:10;padding:10px 12px 14px;display:flex;flex-direction:column;gap:9px;flex-shrink:0;}
+.crow{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px;}
+.crow::-webkit-scrollbar{display:none;}
+.sw{
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  cursor:pointer;border:2.5px solid transparent;transition:transform .15s,box-shadow .15s;
+}
+.sw.on{transform:scale(1.25);border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.25);}
+.sw:active{transform:scale(.88);}
+.sw-custom{
+  width:28px;height:28px;border-radius:50%;
+  background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);
+  border:2px solid var(--brd);flex-shrink:0;overflow:hidden;position:relative;cursor:pointer;
+}
+.sw-custom input{position:absolute;inset:-6px;opacity:0;cursor:pointer;width:200%;height:200%;}
+
+.trow{display:flex;align-items:center;gap:8px;}
+.tgrp{
+  display:flex;gap:5px;background:var(--sur2);
+  border:1px solid var(--brd);border-radius:13px;padding:4px;flex-shrink:0;
+}
+.tbtn{
+  width:38px;height:38px;border-radius:9px;
+  background:transparent;border:none;color:var(--dim);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:17px;transition:all .12s;
+}
+.tbtn:active{transform:scale(.88);}
+.tbtn.on{background:var(--acc);color:#fff;box-shadow:0 0 10px var(--glow);}
+
+.sbox{
+  flex:1;display:flex;align-items:center;gap:8px;
+  background:var(--sur2);border:1px solid var(--brd);
+  border-radius:13px;padding:0 12px;height:46px;
+}
+.slbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;flex-shrink:0;width:28px;text-align:right;}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  flex:1;height:3px;background:var(--brd);border-radius:2px;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--acc);cursor:pointer;box-shadow:0 0 8px var(--glow);
+}
+.ds{width:6px;height:6px;background:var(--dim);border-radius:50%;flex-shrink:0;}
+.dl{width:12px;height:12px;background:var(--dim);border-radius:50%;flex-shrink:0;}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:130px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--sur2);border:1px solid var(--acc);
+  color:var(--txt);font-family:'Space Mono',monospace;
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  padding:10px 22px;border-radius:20px;
+  opacity:0;transition:all .3s;white-space:nowrap;
+  z-index:300;box-shadow:0 0 20px var(--glow);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* INSTALL BANNER */
+.install-banner{
+  position:fixed;bottom:0;left:0;right:0;
+  padding:14px 16px calc(14px + var(--sb));
+  background:linear-gradient(135deg,rgba(26,26,38,.97),rgba(124,111,255,.18));
+  backdrop-filter:blur(20px);
+  border-top:1px solid var(--acc);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  z-index:500;transform:translateY(100%);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.install-banner.show{transform:translateY(0);}
+.inst-txt{flex:1;}
+.inst-title{font-size:14px;font-weight:700;color:var(--txt);}
+.inst-sub{font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1px;margin-top:2px;}
+.inst-btn{
+  background:var(--acc);color:#fff;border:none;border-radius:11px;
+  padding:10px 18px;font-family:'Syne',sans-serif;font-size:13px;
+  font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;
+  box-shadow:0 0 16px var(--glow);
+}
+.inst-close{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:4px;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast">Saved ✓</div>
+
+<!-- Install Banner -->
+<div class="install-banner" id="installBanner">
+  <div class="inst-txt">
+    <div class="inst-title">📲 Install Scribble Pad</div>
+    <div class="inst-sub">Add to home screen · works offline</div>
+  </div>
+  <button class="inst-btn" id="installBtn">Install</button>
+  <button class="inst-close" id="closeBanner">✕</button>
+</div>
+
+<!-- Header -->
+<div class="hdr">
+  <div>
+    <div class="logo">Scribble</div>
+    <span class="logo-sub">PAD</span>
+  </div>
+  <div class="hdr-btns">
+    <button class="ibtn" id="undoBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+    </button>
+    <button class="ibtn" id="redoBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+    </button>
+    <button class="ibtn" id="clearBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button class="ibtn" id="saveBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Canvas -->
+<div class="cwrap" id="cwrap">
+  <canvas id="canvas"></canvas>
+  <div class="hint" id="hint">
+    <div class="hint-icon">✍️</div>
+    <div class="hint-txt">Start scribbling</div>
+  </div>
+  <div class="size-tag" id="sizeTag">
+    <div class="sdot" id="sdot"></div>
+    <span class="stxt" id="stxt">4px</span>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <!-- Colors -->
+  <div class="crow">
+    <div class="sw on"  data-c="#ffffff" style="background:#ffffff"></div>
+    <div class="sw"     data-c="#7c6fff" style="background:#7c6fff"></div>
+    <div class="sw"     data-c="#ff6f91" style="background:#ff6f91"></div>
+    <div class="sw"     data-c="#6fffd4" style="background:#6fffd4"></div>
+    <div class="sw"     data-c="#ffd96f" style="background:#ffd96f"></div>
+    <div class="sw"     data-c="#ff9f6f" style="background:#ff9f6f"></div>
+    <div class="sw"     data-c="#6fb5ff" style="background:#6fb5ff"></div>
+    <div class="sw"     data-c="#c46fff" style="background:#c46fff"></div>
+    <div class="sw"     data-c="#ff6f6f" style="background:#ff6f6f"></div>
+    <div class="sw-custom"><input type="color" id="cpick" value="#ffffff"></div>
+  </div>
+  <!-- Tools + size -->
+  <div class="trow">
+    <div class="tgrp">
+      <button class="tbtn on" id="penTool">✏️</button>
+      <button class="tbtn"    id="markerTool">🖊</button>
+      <button class="tbtn"    id="eraserTool">⬜</button>
+    </div>
+    <div class="sbox">
+      <div class="ds"></div>
+      <input type="range" id="szSlider" min="1" max="60" value="4">
+      <div class="dl"></div>
+    </div>
+  </div>
+  <!-- Opacity -->
+  <div class="trow">
+    <div class="sbox">
+      <span class="slbl" id="opLbl">100%</span>
+      <input type="range" id="opSlider" min="5" max="100" value="100">
+      <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:2px;flex-shrink:0">OPACITY</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Service Worker ──
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+// ── PWA Install ──
+let deferredPrompt = null;
+const banner = document.getElementById('installBanner');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  setTimeout(() => banner.classList.add('show'), 1500);
+});
+
+document.getElementById('installBtn').addEventListener('click', () => {
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; banner.classList.remove('show'); });
+  }
+});
+
+document.getElementById('closeBanner').addEventListener('click', () => banner.classList.remove('show'));
+
+window.addEventListener('appinstalled', () => banner.classList.remove('show'));
+
+// ── Canvas ──
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const cwrap = document.getElementById('cwrap');
+let dpr = window.devicePixelRatio || 1;
+let savedData = null;
+
+function resizeCanvas() {
+  dpr = window.devicePixelRatio || 1;
+  const r = cwrap.getBoundingClientRect();
+  if(canvas.width > 0 && canvas.height > 0) savedData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  canvas.width = r.width * dpr;
+  canvas.height = r.height * dpr;
+  canvas.style.width = r.width + 'px';
+  canvas.style.height = r.height + 'px';
+  ctx.scale(dpr, dpr);
+  if(savedData) ctx.putImageData(savedData,0,0);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ── State ──
+let drawing=false, lx=0, ly=0;
+let color='#ffffff', sz=4, op=1, tool='pen';
+let hasDrawn=false;
+let undoStack=[], redoStack=[];
+let pvTimer;
+
+function getPos(e){
+  const r=canvas.getBoundingClientRect();
+  const s=e.touches?e.touches[0]:e;
+  return{x:s.clientX-r.left, y:s.clientY-r.top};
+}
+
+function saveUndo(){
+  undoStack.push(canvas.toDataURL());
+  if(undoStack.length>40) undoStack.shift();
+  redoStack=[];
+}
+
+function applyStyle(){
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  if(tool==='eraser'){
+    ctx.globalCompositeOperation='destination-out';
+    ctx.strokeStyle='rgba(0,0,0,1)';
+    ctx.fillStyle='rgba(0,0,0,1)';
+    ctx.lineWidth=sz*2.5;
+    ctx.globalAlpha=1;
+  } else if(tool==='marker'){
+    ctx.globalCompositeOperation='source-over';
+    const h=color.replace('#','');
+    const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+    ctx.strokeStyle=`rgba(${r},${g},${b},${op*0.45})`;
+    ctx.fillStyle=ctx.strokeStyle;
+    ctx.lineWidth=sz*3.5;
+    ctx.lineCap='square';
+    ctx.globalAlpha=1;
+  } else {
+    ctx.globalCompositeOperation='source-over';
+    ctx.strokeStyle=color;
+    ctx.fillStyle=color;
+    ctx.lineWidth=sz;
+    ctx.globalAlpha=op;
+  }
+}
+
+function startDraw(e){
+  e.preventDefault();
+  saveUndo();
+  drawing=true;
+  const p=getPos(e); lx=p.x; ly=p.y;
+  if(!hasDrawn){ hasDrawn=true; document.getElementById('hint').classList.add('gone'); }
+  ctx.save(); applyStyle();
+  ctx.beginPath(); ctx.arc(lx,ly,sz/2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function doDraw(e){
+  if(!drawing) return;
+  e.preventDefault();
+  const p=getPos(e);
+  ctx.save(); applyStyle();
+  ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(p.x,p.y); ctx.stroke();
+  ctx.restore();
+  lx=p.x; ly=p.y;
+}
+
+function endDraw(){ drawing=false; }
+
+canvas.addEventListener('mousedown',startDraw);
+canvas.addEventListener('mousemove',doDraw);
+canvas.addEventListener('mouseup',endDraw);
+canvas.addEventListener('mouseleave',endDraw);
+canvas.addEventListener('touchstart',startDraw,{passive:false});
+canvas.addEventListener('touchmove',doDraw,{passive:false});
+canvas.addEventListener('touchend',endDraw);
+canvas.addEventListener('touchcancel',endDraw);
+
+// ── Undo / Redo ──
+document.getElementById('undoBtn').addEventListener('click',()=>{
+  if(!undoStack.length) return;
+  redoStack.push(canvas.toDataURL());
+  const img=new Image(); img.src=undoStack.pop();
+  img.onload=()=>{ const r=cwrap.getBoundingClientRect(); ctx.clearRect(0,0,r.width,r.height); ctx.drawImage(img,0,0,r.width,r.height); };
+});
+document.getElementById('redoBtn').addEventListener('click',()=>{
+  if(!redoStack.length) return;
+  undoStack.push(canvas.toDataURL());
+  const img=new Image(); img.src=redoStack.pop();
+  img.onload=()=>{ const r=cwrap.getBoundingClientRect(); ctx.clearRect(0,0,r.width,r.height); ctx.drawImage(img,0,0,r.width,r.height); };
+});
+
+// ── Clear ──
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  saveUndo();
+  const r=cwrap.getBoundingClientRect(); ctx.clearRect(0,0,r.width,r.height);
+  hasDrawn=false; document.getElementById('hint').classList.remove('gone');
+});
+
+// ── Save ──
+document.getElementById('saveBtn').addEventListener('click',()=>{
+  const link=document.createElement('a');
+  link.download='scribble_'+Date.now()+'.png';
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+  showToast('Saved ✓');
+});
+
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// ── Colors ──
+document.querySelectorAll('.sw').forEach(sw=>{
+  sw.addEventListener('click',()=>{
+    document.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
+    sw.classList.add('on'); color=sw.dataset.c;
+    if(tool==='eraser') setTool('pen');
+  });
+});
+document.getElementById('cpick').addEventListener('input',e=>{
+  color=e.target.value;
+  document.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
+  if(tool==='eraser') setTool('pen');
+});
+
+// ── Tools ──
+function setTool(t){
+  tool=t;
+  document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('on'));
+  document.getElementById(t+'Tool').classList.add('on');
+}
+document.getElementById('penTool').addEventListener('click',()=>setTool('pen'));
+document.getElementById('markerTool').addEventListener('click',()=>setTool('marker'));
+document.getElementById('eraserTool').addEventListener('click',()=>setTool('eraser'));
+
+// ── Size slider ──
+const szSlider=document.getElementById('szSlider');
+const sizeTag=document.getElementById('sizeTag');
+const sdot=document.getElementById('sdot');
+const stxt=document.getElementById('stxt');
+
+szSlider.addEventListener('input',e=>{
+  sz=parseInt(e.target.value);
+  const vis=Math.max(5,Math.min(sz,38));
+  sdot.style.width=vis+'px'; sdot.style.height=vis+'px';
+  stxt.textContent=sz+'px';
+  sizeTag.classList.add('show');
+  clearTimeout(pvTimer);
+  pvTimer=setTimeout(()=>sizeTag.classList.remove('show'),1200);
+});
+
+// ── Opacity ──
+document.getElementById('opSlider').addEventListener('input',e=>{
+  op=parseInt(e.target.value)/100;
+  document.getElementById('opLbl').textContent=e.target.value+'%';
+});
+</script>
+</body>
+</html>
